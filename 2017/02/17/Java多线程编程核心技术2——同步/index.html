@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.2" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="Java,Java多线程," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.2" />
+
+
+
+
+
+
+<meta name="description" content="一. 对象及变量的并发访问非线程安全会发生在多个线程并发访问同一个对象的实例变量时，会产生脏读，读取到的数据是被更改过的。而线程安全各个线程获得的实例变量的值都是经过同步处理的，不会出现脏读。 1.线程是否安全呢？(1) 如果是方法内部的私有变量，不存在非线程安全问题。 (2) 多线程访问的是同一个对象的实例变量时，有可能出现线程不安全问题。 (3) 多个线程访问的是同步方法的话，一定是线程安全的">
+<meta name="keywords" content="Java,Java多线程">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java多线程编程核心技术2——同步">
+<meta property="og:url" content="https://pangongsen.github.io/2017/02/17/Java多线程编程核心技术2——同步/index.html">
+<meta property="og:site_name" content="PanGongsen&#39;s Blog">
+<meta property="og:description" content="一. 对象及变量的并发访问非线程安全会发生在多个线程并发访问同一个对象的实例变量时，会产生脏读，读取到的数据是被更改过的。而线程安全各个线程获得的实例变量的值都是经过同步处理的，不会出现脏读。 1.线程是否安全呢？(1) 如果是方法内部的私有变量，不存在非线程安全问题。 (2) 多线程访问的是同一个对象的实例变量时，有可能出现线程不安全问题。 (3) 多个线程访问的是同步方法的话，一定是线程安全的">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2018-01-03T10:02:25.062Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Java多线程编程核心技术2——同步">
+<meta name="twitter:description" content="一. 对象及变量的并发访问非线程安全会发生在多个线程并发访问同一个对象的实例变量时，会产生脏读，读取到的数据是被更改过的。而线程安全各个线程获得的实例变量的值都是经过同步处理的，不会出现脏读。 1.线程是否安全呢？(1) 如果是方法内部的私有变量，不存在非线程安全问题。 (2) 多线程访问的是同一个对象的实例变量时，有可能出现线程不安全问题。 (3) 多个线程访问的是同步方法的话，一定是线程安全的">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.2',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://pangongsen.github.io/2017/02/17/Java多线程编程核心技术2——同步/"/>
+
+
+
+
+
+  <title>Java多线程编程核心技术2——同步 | PanGongsen's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">PanGongsen's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">我只是讨厌屈服。</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://pangongsen.github.io/2017/02/17/Java多线程编程核心技术2——同步/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="PanGongsen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/uploads/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="PanGongsen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Java多线程编程核心技术2——同步</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2017-02-17T10:14:29+08:00">
+                2017-02-17
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Java多线程/" itemprop="url" rel="index">
+                    <span itemprop="name">Java多线程</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-file-o"></i>
+            <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>次
+            </span>
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="一-对象及变量的并发访问"><a href="#一-对象及变量的并发访问" class="headerlink" title="一. 对象及变量的并发访问"></a>一. 对象及变量的并发访问</h1><p>非线程安全会发生在多个线程并发访问同一个对象的实例变量时，会产生脏读，读取到的数据是被更改过的。而线程安全各个线程获得的实例变量的值都是经过同步处理的，不会出现脏读。</p>
+<h2 id="1-线程是否安全呢？"><a href="#1-线程是否安全呢？" class="headerlink" title="1.线程是否安全呢？"></a>1.线程是否安全呢？</h2><p>(1) 如果是方法内部的私有变量，不存在非线程安全问题。</p>
+<p>(2) 多线程访问的是同一个对象的实例变量时，有可能出现线程不安全问题。</p>
+<p>(3) 多个线程访问的是同步方法的话，一定是线程安全的。</p>
+<p>(4) 多个线程对应的是多个对象时，出现的结果就会是异步的，但是线程安全。</p>
+<h2 id="2-synchronized关键字"><a href="#2-synchronized关键字" class="headerlink" title="2. synchronized关键字"></a>2. synchronized关键字</h2><a id="more"></a>
+<p>(1) synchronized获得的是对象锁，而不是把synchronized下面的方法或者代码块当做锁。</p>
+<p>(2) synchronized声明的方法一定是排队执行的（同步的），只有共享资源的读写访问才需要同步化。</p>
+<p>(3) 线程A和线程B访问同一个object对象的两个同步的方法，线程A先获取object对象的Lock锁，B线程可以以异步的方式调用object对象中的非同步方法，但是想访问该对象的同步方法的话，必须得等待，不管想访问的是不是和线程A同一个同步方法。</p>
+<p>(4) synchronized有锁重入的功能，即自己可以再次获取自己的内部锁，可重入锁也支持父子类继承关系中，即子类可以通过可重入锁访问父类的方法。若不可重入的话，就会造成死锁。</p>
+<p>(5) 当一个线程执行的代码出现异常时，其持有的锁会自动释放(即该线程结束执行)。</p>
+<p>(6) 同步不具有继承性。</p>
+<p>(7) 锁定的对象改变，比如String，可能导致同步锁无效（因为锁变了）。但是只要对象不变，对象的属性被改变，锁还是同一个。</p>
+<h2 id="3-synchronized同步语句块"><a href="#3-synchronized同步语句块" class="headerlink" title="3.synchronized同步语句块"></a>3.synchronized同步语句块</h2><p>synchronized同步方法是对当前对象加锁，同步代码块则是对某一个对象加锁。synchronized同步代码块运行效率应该大于同步方法。</p>
+<p>synchronized(this)：也是锁定当前对象的。</p>
+<p>synchronized(非this对象)：使用同步代码块来锁定非this对象，则synchronized(非this对象)与同步方法是异步的，不与其他锁this同步方法争抢this锁，可以大大提高效率。synchronized同步代码块都不采用String作为锁对象，易造成死锁。</p>
+<h2 id="4-synchronized关键字"><a href="#4-synchronized关键字" class="headerlink" title="4.synchronized关键字"></a>4.synchronized关键字</h2><p>加到static静态方法上是给Class类加上锁（Class锁可以对类得所有对象实例起作用），而加到非static静态方法上是给对象上锁。</p>
+<p>synchronized关键字加到static静态方法上是给Class类加上锁 = synchronized(xxx.Class){}</p>
+<h2 id="5-多线程的死锁"><a href="#5-多线程的死锁" class="headerlink" title="5.多线程的死锁"></a>5.多线程的死锁</h2><p>因为不同的线程都在等待根本不可能被释放的锁，从而导致所有的任务都无法继续执行。</p>
+<p>比如线程A持有了锁1在等待锁2，线程A持有了锁2在等待锁1–》导致死锁。</p>
+<p>解决方案：不使用嵌套的synchronized代码结构。</p>
+<h2 id="6-内置类与静态内置类（补充介绍）"><a href="#6-内置类与静态内置类（补充介绍）" class="headerlink" title="6.内置类与静态内置类（补充介绍）"></a>6.内置类与静态内置类（补充介绍）</h2><p>非静态内置类：指定对象.new 内置类();</p>
+<p>静态内置类：可直接new 内置类();</p>
+<h2 id="7-volatile关键字："><a href="#7-volatile关键字：" class="headerlink" title="7.volatile关键字："></a>7.volatile关键字：</h2><p>使变量在多个线程中可见</p>
+<p>作用：强制从公共堆栈中获取变量的值，而不是从线程私有数据栈中获取。</p>
+<p>※ 在JVM被设置为-server模式时是为了线程运行的效率，线程一直在私有堆栈中获取变量的值。</p>
+<p>在-server模式下，公共堆栈的值和线程私有数据栈的值不同步，加了volatile后就会强制从公共堆栈中读写。</p>
+<p>※volatile和synchronized的比较：</p>
+<p>(1) volatile只能修饰变量，是轻量级实现，所以性能比synchronized好。</p>
+<p>(2) 多线程访问volatile不会阻塞，而访问synchronized会阻塞。</p>
+<p>(3) volatile能保证数据可见性，但不具备同步性，不支持原子性；而synchronized可以保证原子性，也可以间接保证可见性，因为他会将私有内存和共有内存中的数据做同步。</p>
+<p>(4) 两者功能属性不同，synchronized解决的是多个线程之间访问资源的同步性；</p>
+<p>volatile解决变量在多个线程之间的可见性，即：在多个线程可以感知实例变量被修改了，并且可以获得最新的值引用，也就是用多线程读取共享变量时能获得最新值引用。</p>
+<p>volatile int i</p>
+<p>i++;</p>
+<p>i++有如下三个步骤：</p>
+<p>(1) 从内存中获取i的值；</p>
+<p>(2)计算i的值；</p>
+<p>(3) 将i的值写入内存中。</p>
+<p>这样的操作不是一个原子操作（联想：synchronized修饰的方法或者代码段可以看做一个整体，因此具有原子性)，比如线程B要提取i的值时，线程A还未将计算好的i的值放回内存，则线程B取出来的i的值还是线程A计算前的值。–》线程不安全</p>
+<h2 id="8-AtomicInteger-AtomicLong等"><a href="#8-AtomicInteger-AtomicLong等" class="headerlink" title="8.AtomicInteger(AtomicLong等)"></a>8.AtomicInteger(AtomicLong等)</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> AtomicInteger count = <span class="keyword">new</span> AtomicInteger(<span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">System.out.println(count.incrementAndGet());<span class="comment">//自动加1//decrementAndGet()自动减1</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">int</span> <span class="title">incrementAndGet</span><span class="params">()</span> </span>&#123; <span class="keyword">for</span> (;;) &#123; <span class="keyword">int</span> current = get(); <span class="keyword">int</span> next = current + <span class="number">1</span>; <span class="keyword">if</span> (compareAndSet(current, next)) <span class="keyword">return</span> next; &#125; &#125;</span><br></pre></td></tr></table></figure>
+<p>Compare And Swap（CAS)：首先，CPU 会将内存中将要被更改的数据与期望的值做比较。然后，当这两个值相等时，CPU 才会将内存中的数值替换为新的值。否则便不做操作。最后，CPU 会将旧的数值返回。这一系列的操作是原子的。简单来说，CAS 的含义是“我认为原有的值应该是什么，如果是，则将原有的值更新为新值，否则不做修改，并告诉我原来的值是多少”。</p>
+<p>CAS有3个操作数，内存值V，旧的预期值A，要修改的新值B。当且仅当预期值A和内存值V相同时，将内存值V修改为B，否则返回V。这是一种乐观锁的思路，它相信在它修改之前，没有其它线程去修改它；而Synchronized是一种悲观锁，它认为在它修改之前，一定会有其它线程去修改它，悲观锁效率很低。下面来看一下AtomicInteger是如何利用CAS实现原子性操作的。</p>
+<p>但是CAS也是有问题存在的：</p>
+<p>CAS的ABA问题</p>
+<p>1.进程P1在共享变量中读到值为A</p>
+<p>2.P1被抢占了，进程P2执行</p>
+<p>3.P2把共享变量里的值从A改成了B，再改回到A，此时被P1抢占。</p>
+<p>4.P1回来看到共享变量里的值没有被改变，于是继续执行。</p>
+<p>虽然P1以为变量值没有改变，继续执行了，但是这个会引发一些潜在的问题。ABA问题最容易发生在lock free 的算法中的，CAS首当其冲，因为CAS判断的是指针的地址。如果这个地址被重用了呢，问题就很大了。（地址被重用是很经常发生的，一个内存分配后释放了，再分配，很有可能还是原来的地址）</p>
+<p>还有一种情况是：单独一个AtomicInteger.incrementAndGet()是线程安全的，但是同时两个AtomicInteger.incrementAndGet()就不一定是线程安全的了，即两个方法之间不是原子的。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> AtomicLong count = <span class="keyword">new</span> AtomicLong();</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">addNum</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">System.out.println(count.addAndGet(<span class="number">100</span>));</span><br><span class="line"></span><br><span class="line">System.out.println(count.addAndGet(<span class="number">1</span>));</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>多个线程调用addNum()时，线程A加了100，还没来得及加1，线程B就进来加了100。</p>
+<p>解决方案：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">static</span> AtomicLong count = <span class="keyword">new</span> AtomicLong();</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">synchronized</span> <span class="keyword">public</span> <span class="keyword">void</span> <span class="title">addNum</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">System.out.println(count.addAndGet(<span class="number">100</span>));</span><br><span class="line"></span><br><span class="line">System.out.println(count.addAndGet(<span class="number">1</span>));</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<h2 id="9-synchronized代码块也具有volatile同步的功能"><a href="#9-synchronized代码块也具有volatile同步的功能" class="headerlink" title="9.synchronized代码块也具有volatile同步的功能"></a>9.synchronized代码块也具有volatile同步的功能</h2><p>线程A调用runMethod()，线程B调用stopMethod()，持有的是同一把锁。</p>
+<p>当线程A调用完runMethod()后，打印不出”停下来了！”的，因为死循环，被A锁死了。</p>
+<p>各线程间的数据值没有可见性。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> Boolean isContinueRun = <span class="keyword">true</span>;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">runMethod</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span>(isContinueRun)&#123;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    System.out.println(<span class="string">"停下来了！"</span>);</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">stopMethod</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">    isContinueRun = <span class="keyword">false</span>;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>解决方案如下，成功打印”停下来了！”<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> Boolean isContinueRun = <span class="keyword">true</span>;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">runMethod</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> anyString = <span class="keyword">new</span> String();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span>(isContinueRun)&#123;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">synchronized</span>(anyString)&#123;</span><br><span class="line"></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    System.out.println(<span class="string">"停下来了！"</span>);</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">stopMethod</span><span class="params">()</span></span>&#123;</span><br><span class="line"></span><br><span class="line">    isContinueRun = <span class="keyword">false</span>;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>关键字synchronized 保证同一时刻，只有一个线程可以执行某一个方法或某一个代码块。包含两种特性：互斥性和可见性。</p>
+<p> 不仅可以解决一个线程看到对象处于不一致的状态，还可以保证进入同步方法或代码块的每个线程，都可以看到由同一个锁保护之前所有的修改结果。（外连互斥，内修可见。）</p>
+<h1 id="二-锁的使用"><a href="#二-锁的使用" class="headerlink" title="二. 锁的使用"></a>二. 锁的使用</h1><p>Lock也能实现同步的效果，在使用上更加方便。</p>
+<h2 id="1-ReentrantLock类-–-Lock-lock-new-ReentrantLock"><a href="#1-ReentrantLock类-–-Lock-lock-new-ReentrantLock" class="headerlink" title="1. ReentrantLock类  – Lock lock = new ReentrantLock();"></a>1. ReentrantLock类  – Lock lock = new ReentrantLock();</h2><p>(1) 使用ReentrantLock.lock()获取锁（加锁），线程就拥有了“对象监视器”；</p>
+<p>其他线程只有等待ReentrantLock.unlock()释放锁（解锁），再次争抢获得锁。</p>
+<p>效果和synchronized一致，但线程执行顺序是随机的。</p>
+<p>(2) 关键字与wait()/notify()/notifyAll()：实现等待/通知模式，但是notifyAll()的话，需要通知所有处于WAITING状态的线程，会出现相当大的效率问题。</p>
+<p>ReentrantLock和Condition对象也同样可以实现。在一个Lock对象里可以创建多个Condition（即对象监视器）实例，可以实现多路通知功能；实例对象可以注册在指定的Condition中，从而可以有选择地进行线程通知，在调度线程上更加灵活。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> lock;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> java.util.concurrent.locks.Condition;</span><br><span class="line"><span class="keyword">import</span> java.util.concurrent.locks.Lock;</span><br><span class="line"><span class="keyword">import</span> java.util.concurrent.locks.ReentrantLock;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">LockService</span> </span>&#123;</span><br><span class="line"> <span class="keyword">private</span> Lock lock = <span class="keyword">new</span> ReentrantLock();</span><br><span class="line"> <span class="keyword">public</span> Condition condition = lock.newCondition();</span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">await</span><span class="params">()</span></span>&#123;</span><br><span class="line">  <span class="keyword">try</span> &#123;</span><br><span class="line">   lock.lock();</span><br><span class="line">   condition.await();<span class="comment">//必须在调用await()之前先调用lock()以获得同步监视器</span></span><br><span class="line">  &#125; <span class="keyword">catch</span> (InterruptedException e) &#123;</span><br><span class="line">   e.printStackTrace();</span><br><span class="line">  &#125;</span><br><span class="line"> &#125;</span><br><span class="line"> </span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">signal</span><span class="params">()</span></span>&#123;</span><br><span class="line">  <span class="keyword">try</span> &#123;</span><br><span class="line">   lock.lock();</span><br><span class="line">   condition.signal();<span class="comment">//还有condition.signalAll();</span></span><br><span class="line">  &#125; <span class="keyword">finally</span>&#123;</span><br><span class="line">   lock.unlock();</span><br><span class="line">  &#125;  </span><br><span class="line"> &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>(3) signalAll()<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> Condition conditionA = lock.newCondition();</span><br><span class="line"><span class="keyword">public</span> Condition conditionB = lock.newCondition();</span><br><span class="line"><span class="comment">//use:</span></span><br><span class="line">conditionA.signal(); <span class="comment">//or conditionB.signal();</span></span><br></pre></td></tr></table></figure><br>唤醒指定种类的线程，如conditionA.signal(); 只有用了conditionA的线程被唤醒。</p>
+<p>(4) 公平锁与非公平锁</p>
+<p>公平锁：线程获取锁的顺序是按照线程加锁的顺序来分配的（FIFO）；new ReentrantLock(true);//不一定百分百FIFO，但是基本呈有序。</p>
+<p>非公平锁(默认)：锁的抢占机制，随机获得锁。new ReentrantLock(false);</p>
+<h2 id="2-相关方法介绍"><a href="#2-相关方法介绍" class="headerlink" title="2.相关方法介绍"></a>2.相关方法介绍</h2><p>(1) int getHoldCount():查询当前线程保持此锁定的个数，也就是调用lock()的次数。</p>
+<p>(2) int getQueueLength():返回正获取此锁定的线程估计数，如5个线程，一个线程调用了await()，还有4个线程在等待锁的释放。</p>
+<p>(3) int getWaitQueueLength(Condition condition):比如有5个线程，每个线程都执行了同一个condition对象的await()，则结果为5。</p>
+<p>(4) boolean hasQueuedThread(Thread thread):查询指定的线程是否正在等待此锁定。</p>
+<p>(5) boolean hasWaiters(Condition condition):是否有线程正在等待与此锁定有关的condition条件。</p>
+<p>(6) boolean isFair():判断是不是公平锁。</p>
+<p>(7) boolean isHeldByCurrentThread():查询当前线程是否保持此锁定。</p>
+<p>(8) boolean  isLocked():查询此锁定是否由任意线程保持。</p>
+<p>(9) void lockInterruptibly():如果当前线程未被中断，则获取锁定，如果已经被中断则出现异常。</p>
+<p>(10) boolean tryLock():仅在调用时锁定未被另一个线程保持的情况下，才获取该锁定。</p>
+<p>(11) boolean tryLock(long timeout,TimeUnit unit):若在给定等待时间内没有被另一个线程保持，且当前线程未被中断，则获取该锁定。</p>
+<p>(12) Condition.awaitUninterruptibly():在WAITING情况下interrupt()不会抛出异常。</p>
+<p>(13) Condition.awaitUntil(time):线程在等待时间到达前，可以被其他线程唤醒。</p>
+<h2 id="3-ReentranReadWriteLock类"><a href="#3-ReentranReadWriteLock类" class="headerlink" title="3.ReentranReadWriteLock类"></a>3.ReentranReadWriteLock类</h2><p>共享锁：读操作相关的锁；排他锁：写操作相关的锁。</p>
+<p>读写，写读，写写都是互斥的；读读是异步的，非互斥的。</p>
+<p>作者：有奶喝先森<br>链接：<a href="http://www.jianshu.com/p/9178ff321e84" target="_blank" rel="noopener">http://www.jianshu.com/p/9178ff321e84</a><br>來源：简书<br>著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Java/" rel="tag"># Java</a>
+          
+            <a href="/tags/Java多线程/" rel="tag"># Java多线程</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/02/16/开个人博客的意义/" rel="next" title="开个人博客的意义">
+                <i class="fa fa-chevron-left"></i> 开个人博客的意义
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/02/17/Java多线程编程核心技术3——定时器Timer/" rel="prev" title="Java多线程编程核心技术3——定时器Timer">
+                Java多线程编程核心技术3——定时器Timer <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          
+            <img class="site-author-image" itemprop="image"
+              src="/uploads/avatar.jpg"
+              alt="PanGongsen" />
+          
+            <p class="site-author-name" itemprop="name">PanGongsen</p>
+            <p class="site-description motion-element" itemprop="description"></p>
+        </div>
+
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+            
+              <a href="/archives/">
+            
+                <span class="site-state-item-count">12</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/index.html">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/index.html">
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#一-对象及变量的并发访问"><span class="nav-number">1.</span> <span class="nav-text">一. 对象及变量的并发访问</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-线程是否安全呢？"><span class="nav-number">1.1.</span> <span class="nav-text">1.线程是否安全呢？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-synchronized关键字"><span class="nav-number">1.2.</span> <span class="nav-text">2. synchronized关键字</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-synchronized同步语句块"><span class="nav-number">1.3.</span> <span class="nav-text">3.synchronized同步语句块</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-synchronized关键字"><span class="nav-number">1.4.</span> <span class="nav-text">4.synchronized关键字</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-多线程的死锁"><span class="nav-number">1.5.</span> <span class="nav-text">5.多线程的死锁</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-内置类与静态内置类（补充介绍）"><span class="nav-number">1.6.</span> <span class="nav-text">6.内置类与静态内置类（补充介绍）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-volatile关键字："><span class="nav-number">1.7.</span> <span class="nav-text">7.volatile关键字：</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-AtomicInteger-AtomicLong等"><span class="nav-number">1.8.</span> <span class="nav-text">8.AtomicInteger(AtomicLong等)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-synchronized代码块也具有volatile同步的功能"><span class="nav-number">1.9.</span> <span class="nav-text">9.synchronized代码块也具有volatile同步的功能</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#二-锁的使用"><span class="nav-number">2.</span> <span class="nav-text">二. 锁的使用</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-ReentrantLock类-–-Lock-lock-new-ReentrantLock"><span class="nav-number">2.1.</span> <span class="nav-text">1. ReentrantLock类  – Lock lock = new ReentrantLock();</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-相关方法介绍"><span class="nav-number">2.2.</span> <span class="nav-text">2.相关方法介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-ReentranReadWriteLock类"><span class="nav-number">2.3.</span> <span class="nav-text">3.ReentranReadWriteLock类</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">PanGongsen</span>
+
+  
+</div>
+
+
+  <div class="powered-by">骄傲得使用 <a class="theme-link" href="https://hexo.io">Hexo</a> </div>
+
+  <span class="post-meta-divider">|</span>
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.2</div>
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">
+      <i class="fa fa-user"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_uv"></span>
+      
+    </span>
+  
+
+  
+    <span class="site-pv">
+      <i class="fa fa-eye"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_pv"></span>
+      次
+    </span>
+  
+</div>
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.2"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.2"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.2"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.2"></script>
+
+
+
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.2"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.2"></script>
+
+
+  
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.2"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+</body>
+</html>
