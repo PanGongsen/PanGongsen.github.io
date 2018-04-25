@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.2" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="Flink," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=5.1.2" />
+
+
+
+
+
+
+<meta name="description" content="窗口计算时遇到好几次水位线不触发的情况，简单总结下。 首先，介绍下Flink的事件时间(EventTime)和水位线(Watermarks)的概念。 一、处理时间如果要构造一个实时的流式应用，或早或晚都会接触到EventTime这个概念。现实场景中也会遇到消息乱序到达，这里会介绍到为什么需要事件时间和如何去处理乱序到达的数据。ProcessingTime是Flink系统处理这条消息的时间，Even">
+<meta name="keywords" content="Flink">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Flink水位线不触发的几点总结">
+<meta property="og:url" content="https://pangongsen.github.io/2018/04/25/Flink水位线不触发的几点总结/index.html">
+<meta property="og:site_name" content="PanGongsen&#39;s Blog">
+<meta property="og:description" content="窗口计算时遇到好几次水位线不触发的情况，简单总结下。 首先，介绍下Flink的事件时间(EventTime)和水位线(Watermarks)的概念。 一、处理时间如果要构造一个实时的流式应用，或早或晚都会接触到EventTime这个概念。现实场景中也会遇到消息乱序到达，这里会介绍到为什么需要事件时间和如何去处理乱序到达的数据。ProcessingTime是Flink系统处理这条消息的时间，Even">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="https://pangongsen.github.io/uploads/watermarks/pr_ino_source.png">
+<meta property="og:image" content="https://pangongsen.github.io/uploads/watermarks/pr_ino_windows.png">
+<meta property="og:image" content="https://pangongsen.github.io/uploads/watermarks/pr_ooo_windows.png">
+<meta property="og:image" content="https://pangongsen.github.io/uploads/watermarks/ev_ooo_windows.png">
+<meta property="og:image" content="https://pangongsen.github.io/uploads/watermarks/ev_ooo_windows_wat.png">
+<meta property="og:updated_time" content="2018-04-25T08:08:18.075Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Flink水位线不触发的几点总结">
+<meta name="twitter:description" content="窗口计算时遇到好几次水位线不触发的情况，简单总结下。 首先，介绍下Flink的事件时间(EventTime)和水位线(Watermarks)的概念。 一、处理时间如果要构造一个实时的流式应用，或早或晚都会接触到EventTime这个概念。现实场景中也会遇到消息乱序到达，这里会介绍到为什么需要事件时间和如何去处理乱序到达的数据。ProcessingTime是Flink系统处理这条消息的时间，Even">
+<meta name="twitter:image" content="https://pangongsen.github.io/uploads/watermarks/pr_ino_source.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.2',
+    sidebar: {"position":"left","display":"post","offset":12,"offset_float":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://pangongsen.github.io/2018/04/25/Flink水位线不触发的几点总结/"/>
+
+
+
+
+
+  <title>Flink水位线不触发的几点总结 | PanGongsen's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">PanGongsen's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">我只是讨厌屈服。</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://pangongsen.github.io/2018/04/25/Flink水位线不触发的几点总结/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="PanGongsen">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/uploads/avatar.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="PanGongsen's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Flink水位线不触发的几点总结</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2018-04-25T23:48:54+08:00">
+                2018-04-25
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Flink/" itemprop="url" rel="index">
+                    <span itemprop="name">Flink</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-file-o"></i>
+            <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>次
+            </span>
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>窗口计算时遇到好几次水位线不触发的情况，简单总结下。</p>
+<p>首先，介绍下Flink的事件时间(EventTime)和水位线(Watermarks)的概念。</p>
+<h2 id="一、处理时间"><a href="#一、处理时间" class="headerlink" title="一、处理时间"></a>一、处理时间</h2><p>如果要构造一个实时的流式应用，或早或晚都会接触到EventTime这个概念。现实场景中也会遇到消息乱序到达，这里会介绍到为什么需要事件时间和如何去处理乱序到达的数据。<br>ProcessingTime是Flink系统处理这条消息的时间，EventTime可以理解成是这条消息真实发生的时间。<br>举个例子，创建一个SlidingWindow，窗口大小为10秒，步长为5秒。关于窗口的更多概念，可以参考<a href="http://flink.iteblog.com/dev/windows.html" target="_blank" rel="noopener">Flink官方文档——Windows</a>。</p>
+<h3 id="案例1：消息都按时到达"><a href="#案例1：消息都按时到达" class="headerlink" title="案例1：消息都按时到达"></a>案例1：消息都按时到达</h3><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">val</span> text = senv.socketTextStream(<span class="string">"localhost"</span>, <span class="number">9999</span>)</span><br><span class="line"><span class="keyword">val</span> counts = text.map &#123;(m: <span class="type">String</span>) =&gt; (m.split(<span class="string">","</span>)(<span class="number">0</span>), <span class="number">1</span>) &#125;</span><br><span class="line">    .keyBy(<span class="number">0</span>)</span><br><span class="line">    .timeWindow(<span class="type">Time</span>.seconds(<span class="number">10</span>), <span class="type">Time</span>.seconds(<span class="number">5</span>))</span><br><span class="line">    .sum(<span class="number">1</span>)</span><br><span class="line">counts.print</span><br><span class="line">senv.execute(<span class="string">"ProcessingTime processing example"</span>)</span><br></pre></td></tr></table></figure>
+<p>如果source中有三条消息，对应的事件时间分别为13秒、13秒和16秒：<br><img src="/uploads/watermarks/pr_ino_source.png" alt="pr_ino_source"><br>它们会落到正确的窗口上，如下图所示。13秒产生的两条消息会落到窗口1[5s-15s]和窗口2[10s-20s]上，16秒产生的消息会落到窗口2[10s-20s]和窗口3[15s-25s]上。最后窗口fire掉时，三个窗口的count值分别为：(a,2), (a,3) and (a,1) ，和预期一致。<br><img src="/uploads/watermarks/pr_ino_windows.png" alt="pr_ino_windows"></p>
+<h3 id="案例2：消息delay"><a href="#案例2：消息delay" class="headerlink" title="案例2：消息delay"></a>案例2：消息delay</h3><p>其中一条13秒产生的消息晚到了6s，那按上面的代码逻辑，这些消息会落到下面的窗口中：<br><img src="/uploads/watermarks/pr_ooo_windows.png" alt="pr_ooo_windows"><br>延迟的消息会落到窗口2[10s-20s]和窗口3[15s-25s]上。这看起来对窗口2没有影响，因为结果都是3，但窗口3的结果却不一致了。</p>
+<h2 id="二、事件时间"><a href="#二、事件时间" class="headerlink" title="二、事件时间"></a>二、事件时间</h2><p>因此此处我们采用事件时间，这里水位线的事件时间为当前系统的时间，当然你可以改成数据中的某个时间。<br><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">TimestampExtractor</span> <span class="keyword">extends</span> <span class="title">AssignerWithPeriodicWatermarks</span>[<span class="type">String</span>] <span class="keyword">with</span> <span class="title">Serializable</span> </span>&#123;</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">extractTimestamp</span></span>(e: <span class="type">String</span>, prevElementTimestamp: <span class="type">Long</span>) = &#123;</span><br><span class="line">    e.split(<span class="string">","</span>)(<span class="number">1</span>).toLong </span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getCurrentWatermark</span></span>(): <span class="type">Watermark</span> = &#123; </span><br><span class="line">      <span class="keyword">new</span> <span class="type">Watermark</span>(<span class="type">System</span>.currentTimeMillis)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">senv.setStreamTimeCharacteristic(<span class="type">TimeCharacteristic</span>.<span class="type">EventTime</span>)</span><br><span class="line"><span class="keyword">val</span> text = senv.socketTextStream(<span class="string">"localhost"</span>, <span class="number">9999</span>)</span><br><span class="line">                .assignTimestampsAndWatermarks(<span class="keyword">new</span> <span class="type">TimestampExtractor</span>) </span><br><span class="line"><span class="keyword">val</span> counts = text.map &#123;(m: <span class="type">String</span>) =&gt; (m.split(<span class="string">","</span>)(<span class="number">0</span>), <span class="number">1</span>) &#125;</span><br><span class="line">      .keyBy(<span class="number">0</span>)</span><br><span class="line">      .timeWindow(<span class="type">Time</span>.seconds(<span class="number">10</span>), <span class="type">Time</span>.seconds(<span class="number">5</span>))</span><br><span class="line">      .sum(<span class="number">1</span>)</span><br><span class="line">counts.print</span><br><span class="line">senv.execute(<span class="string">"EventTime processing example"</span>)</span><br></pre></td></tr></table></figure>
+<p>结果如下图所示：<br><img src="/uploads/watermarks/ev_ooo_windows.png" alt="ev_ooo_windows"><br>结果看起来好很多，窗口2和3都正确了，但窗口1却丢了一条数据。<br>Flink没有将delay的数据分配给窗口3是因为现在是检查消息的事件时间，因此不会放入窗口三中。而没有分配给窗口1的原因是delayed的消息到达系统的时间是19秒，窗口1已经fire掉了。此处就需要watermarks了。</p>
+<h2 id="三、水位线（水印）"><a href="#三、水位线（水印）" class="headerlink" title="三、水位线（水印）"></a>三、水位线（水印）</h2><p>我认为水位线是很重要和有趣的一个概念，我这里会大概描述下，如果想了解更多可以看<a href="https://www.youtube.com/watch?v=3UfZN59Nsk8" target="_blank" rel="noopener">Google一场精彩的talk</a>，也可以看这个<a href="https://data-artisans.com/blog/how-apache-flink-enables-new-streaming-applications-part-1" target="_blank" rel="noopener">dataArtisans的blog</a>。水位线简单理解就是一个timestamp，当Flink收到这个水印时，Flink理解会收到来自这个时间点之后的消息，也可以理解成告诉Flink运行到哪个事件时间了。<br>在这个案例中，其实就是告诉Flink一条消息可以迟到多久。<br>我现在设置水位线为现在的事件提前5秒，相当于告诉Flink我的消息可以迟到五秒。<br><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">def</span> <span class="title">getCurrentWatermark</span></span>(): <span class="type">Watermark</span> = &#123; </span><br><span class="line">      <span class="keyword">new</span> <span class="type">Watermark</span>(<span class="type">System</span>.currentTimeMillis - <span class="number">5000</span>)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure><br>结果变成下图所示:<br><img src="/uploads/watermarks/ev_ooo_windows_wat.png" alt="ev_ooo_windows_wat"></p>
+<h2 id="四、允许延迟-Lateness"><a href="#四、允许延迟-Lateness" class="headerlink" title="四、允许延迟(Lateness)"></a>四、允许延迟(Lateness)</h2><p>如果采用“watermark - delay”，如果水位线不超过window_length + delay是不会被fire掉的，所以此刻可以采用allowedLateness方法。在window_end_time + allowed lateness之前，Flink都不会丢弃这条数据。<br>当消息到达时，Flink会提取它的时间，然后判断它是否在有效的延迟时间内，然后去判断是否fire掉窗口。<br>但是通过这种途径，一个窗口有可能被fire掉多次，如果需要exactly once processing的话，需要保证sink是幂等的。</p>
+<h2 id="五、水位线怎么不触发？"><a href="#五、水位线怎么不触发？" class="headerlink" title="五、水位线怎么不触发？"></a>五、水位线怎么不触发？</h2><p>数据一直有序得进来，为什么没有窗口被fire掉？没有结果产出？</p>
+<h3 id="case1：提取时间失败"><a href="#case1：提取时间失败" class="headerlink" title="case1：提取时间失败"></a>case1：提取时间失败</h3><p>笔者和上游约定好了数据格式，extractTimestamp中提取的是某个字段为事件时间。研究数据发现约定好的字段突然不发了。</p>
+<h3 id="case2：提取时间有了，但是照样失败"><a href="#case2：提取时间有了，但是照样失败" class="headerlink" title="case2：提取时间有了，但是照样失败"></a>case2：提取时间有了，但是照样失败</h3><p>上游按约定发了该字段后，系统在测试环境运行了一段时间，又没有结果产出了。<br>调试发现提取时间正常，checkAndGetNextWatermark也正常，但是为什么窗口没被fire掉呢。<br>因为时间的format变了，由到毫秒的timestamp变成了yyyymmddHHmmss，需要转成timestamp。</p>
+<h3 id="case3：一切正常，窗口不fire"><a href="#case3：一切正常，窗口不fire" class="headerlink" title="case3：一切正常，窗口不fire"></a>case3：一切正常，窗口不fire</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">EventTimeTrigger.java</span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> TriggerResult <span class="title">onElement</span><span class="params">(Object element, <span class="keyword">long</span> timestamp, TimeWindow window, TriggerContext ctx)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (window.maxTimestamp() &lt;= ctx.getCurrentWatermark()) &#123;</span><br><span class="line">		<span class="comment">// if the watermark is already past the window fire immediately</span></span><br><span class="line">		<span class="keyword">return</span> TriggerResult.FIRE;</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		ctx.registerEventTimeTimer(window.maxTimestamp());</span><br><span class="line">		<span class="keyword">return</span> TriggerResult.CONTINUE;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>看了下EventTimeTrigger的源码，只有当当前的水位线越过窗口，即时间大于窗口的endTime才会触发Fire的操作。我们的处理流程没有触发，那就说明我们的水位线没有更新到合适的值。调试后发现当前的水位线一直停留在初始的最小的long值。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">BoundedOutOfOrdernessTimestampExtractor.java</span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">final</span> Watermark <span class="title">getCurrentWatermark</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="comment">// this guarantees that the watermark never goes backwards.</span></span><br><span class="line">	<span class="keyword">long</span> potentialWM = currentMaxTimestamp - maxOutOfOrderness;</span><br><span class="line">	<span class="keyword">if</span> (potentialWM &gt;= lastEmittedWatermark) &#123;</span><br><span class="line">		lastEmittedWatermark = potentialWM;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="keyword">new</span> Watermark(lastEmittedWatermark);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>debug发现lastEmittedWatermark确实有更新，这说明这个地方是触发了Watermark的值。但是debug的过程中，发现时不时会出现初始值的水位线。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">SystemProcessingTimeService.java</span><br><span class="line">TimestampsAndPeriodicWatermarksOperator.java</span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onProcessingTime</span><span class="params">(<span class="keyword">long</span> timestamp)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">	<span class="comment">// register next timer</span></span><br><span class="line">	Watermark newWatermark = userFunction.getCurrentWatermark();</span><br><span class="line">	<span class="keyword">if</span> (newWatermark != <span class="keyword">null</span> &amp;&amp; newWatermark.getTimestamp() &gt; currentWatermark) &#123;</span><br><span class="line">		currentWatermark = newWatermark.getTimestamp();</span><br><span class="line">		<span class="comment">// emit watermark</span></span><br><span class="line">		output.emitWatermark(newWatermark);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">long</span> now = getProcessingTimeService().getCurrentProcessingTime();</span><br><span class="line">	getProcessingTimeService().registerTimer(now + watermarkInterval, <span class="keyword">this</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>TimestampsAndPeriodicWatermarksOperator会做判断：如果新的水位线小于当前的水位线，就不会更新了。<br>终于，顺着StreamInputProcessor–&gt;StatusWatermarkValve理了下来，看见这样的处理逻辑:<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">StreamInputProcessor.java</span><br><span class="line">StatusWatermarkValve.java</span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">findAndOutputNewMinWatermarkAcrossAlignedChannels</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">long</span> newMinWatermark = Long.MAX_VALUE;</span><br><span class="line">	<span class="comment">// determine new overall watermark by considering only watermark-aligned channels across all channels</span></span><br><span class="line">	<span class="keyword">for</span> (InputChannelStatus channelStatus : channelStatuses) &#123;</span><br><span class="line">		<span class="keyword">if</span> (channelStatus.isWatermarkAligned) &#123;</span><br><span class="line">			newMinWatermark = Math.min(channelStatus.watermark, newMinWatermark);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// we acknowledge and output the new overall watermark if it is larger than the last output watermark</span></span><br><span class="line">	<span class="keyword">if</span> (newMinWatermark &gt; lastOutputWatermark) &#123;</span><br><span class="line">		lastOutputWatermark = newMinWatermark;</span><br><span class="line">		outputHandler.handleWatermark(<span class="keyword">new</span> Watermark(lastOutputWatermark));</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><br>这里会将所有的channel status的水位线做个汇总：取最小的水位线。那是不是问题出在这里？后面debug了下看看，确实，这个地方有的channel status下的水位线一直是最小的long值那个不正常的水位线，进而导致整体的水位线发送不出去。<br>那么为什么会出现这种情况呢，百思不得其解。<br>当 [window_start_time,window_end_time) 有数据，watermark Time大于等于window_end_time时，会触发window trigger。<br>因为之前运行都是正常的，检查了数据也没问题。去翻改动，有影响的可能就是改了一些算子的并行度。<br>assigntimestampandwatermarks和map的并行度一样了就不能生成水位线了？<br>于是修改了assigntimestampandwatermarks的并行度，window正常fire掉了。amazing。<br>不知道是不是Flink的bug，已经提交。后续更新。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Flink/" rel="tag"># Flink</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/02/25/那就留下一个故事吧/" rel="next" title="那就留下一个故事吧">
+                <i class="fa fa-chevron-left"></i> 那就留下一个故事吧
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          
+            <img class="site-author-image" itemprop="image"
+              src="/uploads/avatar.jpg"
+              alt="PanGongsen" />
+          
+            <p class="site-author-name" itemprop="name">PanGongsen</p>
+            <p class="site-description motion-element" itemprop="description"></p>
+        </div>
+
+        <nav class="site-state motion-element">
+
+          
+            <div class="site-state-item site-state-posts">
+            
+              <a href="/archives/">
+            
+                <span class="site-state-item-count">13</span>
+                <span class="site-state-item-name">日志</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-categories">
+              <a href="/categories/index.html">
+                <span class="site-state-item-count">2</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            
+            
+            <div class="site-state-item site-state-tags">
+              <a href="/tags/index.html">
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">标签</span>
+              </a>
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一、处理时间"><span class="nav-number">1.</span> <span class="nav-text">一、处理时间</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#案例1：消息都按时到达"><span class="nav-number">1.1.</span> <span class="nav-text">案例1：消息都按时到达</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#案例2：消息delay"><span class="nav-number">1.2.</span> <span class="nav-text">案例2：消息delay</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二、事件时间"><span class="nav-number">2.</span> <span class="nav-text">二、事件时间</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三、水位线（水印）"><span class="nav-number">3.</span> <span class="nav-text">三、水位线（水印）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#四、允许延迟-Lateness"><span class="nav-number">4.</span> <span class="nav-text">四、允许延迟(Lateness)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#五、水位线怎么不触发？"><span class="nav-number">5.</span> <span class="nav-text">五、水位线怎么不触发？</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#case1：提取时间失败"><span class="nav-number">5.1.</span> <span class="nav-text">case1：提取时间失败</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#case2：提取时间有了，但是照样失败"><span class="nav-number">5.2.</span> <span class="nav-text">case2：提取时间有了，但是照样失败</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#case3：一切正常，窗口不fire"><span class="nav-number">5.3.</span> <span class="nav-text">case3：一切正常，窗口不fire</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2018</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">PanGongsen</span>
+
+  
+</div>
+
+
+  <div class="powered-by">骄傲得使用 <a class="theme-link" href="https://hexo.io">Hexo</a> </div>
+
+  <span class="post-meta-divider">|</span>
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.2</div>
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">
+      <i class="fa fa-user"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_uv"></span>
+      
+    </span>
+  
+
+  
+    <span class="site-pv">
+      <i class="fa fa-eye"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_pv"></span>
+      次
+    </span>
+  
+</div>
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.2"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.2"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.2"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.2"></script>
+
+
+
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.2"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.2"></script>
+
+
+  
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.2"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+</body>
+</html>
